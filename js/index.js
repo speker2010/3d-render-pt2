@@ -231,9 +231,38 @@
         return viewportToCanvas(v.x * d / v.z, v.y * d / v.z);
     }
 
+    function renderTriangle(triangle, vertexes, color) {
+        let p0 = triangle[0];
+        let p1 = triangle[1];
+        let p2 = triangle[2];
+
+        drawWireframeTriangle(vertexes[p0], vertexes[p1], vertexes[p2], color);
+    }
+
+    function renderInstance(instance) {
+        let projected = {};
+        let model = instance.model;
+        Object.keys(model.vertexes).forEach((vertex) => {
+            let newPosition = add3(
+                ptz(...model.vertexes[vertex]),
+                ptz(...instance.transform.position)
+            );
+            projected[vertex] = projectVertex(newPosition);
+        });
+        model.triangles.forEach((triangle) => {
+            renderTriangle(triangle, projected, model.color);
+        });        
+    }
+
+    function renderScene() {
+        scene.instances.forEach((instance) => {
+            renderInstance(instance);
+        });
+    }
+
     const CANVAS = document.querySelector('canvas');
     const CTX = CANVAS.getContext('2d');
-    let size = (window.innerWidth > window.innerHeight) ? window.innerHeight : window.innerWidth;
+    let size = (window.innerWidth > window.innerHeight) ? window.innerHeight - 4 : window.innerWidth - 4;
     let width = size;
     let height = size;
     let viewWidth = 1;
@@ -242,7 +271,7 @@
     let horizontalCenter = Math.floor(width / 2);
     let verticalCenter = Math.floor(height / 2);
     CANVAS.width = width;
-    CANVAS.height = height;    
+    CANVAS.height = height;
     
     let vAf = ptz(-2, -0.5, 5);
     let vBf = ptz(-2, 0.5, 5);
@@ -259,69 +288,56 @@
     const RED = [255, 0, 0];
     const GREEN = [0, 255, 0];
 
-    drawLine(
-        projectVertex(vAf),
-        projectVertex(vBf),
-        BLUE
-    );
-    drawLine(
-        projectVertex(vBf),
-        projectVertex(vCf),
-        BLUE
-    );
-    drawLine(
-        projectVertex(vCf),
-        projectVertex(vDf),
-        BLUE
-    );
-    drawLine(
-        projectVertex(vDf),
-        projectVertex(vAf),
-        BLUE
-    );
+    const CUBE = {
+        vertexes: {
+            a: [1, 1, 1],
+            b: [1, 1, -1],
+            c: [1, -1, -1],
+            d: [1, -1, 1],
+            e: [-1, -1, -1],
+            f: [-1, -1, 1],
+            g: [-1, 1, 1],
+            h: [-1, 1, -1]
+        },
+        triangles: [
+            ['a', 'b', 'c'],
+            ['a', 'c', 'd'],
+            ['e', 'f', 'g'],
+            ['e', 'h', 'g'],
+            ['d', 'f', 'g'],
+            ['d', 'a', 'g'],
+            ['a', 'h', 'g'],
+            ['a', 'b', 'h'],
+            ['c', 'b', 'h'],
+            ['c', 'e', 'h'],
+            ['c', 'd', 'e'],
+            ['d', 'f', 'e']
+        ],
+        color: RED
+    }
 
-    drawLine(
-        projectVertex(vAb),
-        projectVertex(vBb),
-        RED
-    );
-    drawLine(
-        projectVertex(vBb),
-        projectVertex(vCb),
-        RED
-    );
-    drawLine(
-        projectVertex(vCb),
-        projectVertex(vDb),
-        RED
-    );
-    drawLine(
-        projectVertex(vDb),
-        projectVertex(vAb),
-        RED
-    );
+    let build1 = {
+        model: CUBE,
+        transform: {
+            position: [-2, 2, -10]
+        }
+    };
 
-    drawLine(
-        projectVertex(vAf),
-        projectVertex(vAb),
-        GREEN
-    );
-    drawLine(
-        projectVertex(vBf),
-        projectVertex(vBb),
-        GREEN
-    );
-    drawLine(
-        projectVertex(vCf),
-        projectVertex(vCb),
-        GREEN
-    );
-    drawLine(
-        projectVertex(vDf),
-        projectVertex(vDb),
-        GREEN
-    );
+    let build2 = {
+        model: CUBE,
+        transform: {
+            position: [1, 0, -20]
+        }
+    };
 
+    let scene = {
+        instances: [
+            build1,
+            build2
+        ]
+    };
+
+    renderScene();
 
 
     //drawWireframeTriangle(pt(-100, -100), pt(100, -100), pt(75, 50), [0, 0, 0]);
@@ -333,3 +349,11 @@
 
     
 })()
+
+function add3(p0, p1) {
+    return {
+        x: p0.x + +p1.x,
+        y: p0.y + +p1.y,
+        z: p0.z + +p1.z
+    };
+}
