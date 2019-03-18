@@ -13,6 +13,12 @@
         return coords;
     }
 
+    let ptz = (x, y, z) => {
+        let coords = pt(x, y);
+        coords.z = z;
+        return coords;
+    }
+
     function putPixel(x, y, color) {
         x = horizontalCenter + +x;
         y = verticalCenter - y;        
@@ -42,6 +48,8 @@
     }
 
     function drawLine(p0, p1, color) {
+        console.log('line', p0, p1);
+        console.log(width, height);
         let x1 = p1.x;
         let x0 = p0.x;
         let y1 = p1.y;
@@ -212,24 +220,113 @@
         */
     }
 
+    function viewportToCanvas(x, y) {
+        return {
+            x: x * width / viewWidth,
+            y: y * height / viewHeight
+        };
+    }
+
+    function projectVertex(v) {
+        return viewportToCanvas(v.x * d / v.z, v.y * d / v.z);
+    }
+
     const CANVAS = document.querySelector('canvas');
     const CTX = CANVAS.getContext('2d');
-    console.log(window.innerWidth, window.innerHeight);
-    let width = window.innerWidth - 4;
-    let height = window.innerHeight - 4;
+    let size = (window.innerWidth > window.innerHeight) ? window.innerHeight : window.innerWidth;
+    let width = size;
+    let height = size;
+    let viewWidth = 1;
+    let viewHeight = 1;
+    let d = 1;
     let horizontalCenter = Math.floor(width / 2);
     let verticalCenter = Math.floor(height / 2);
     CANVAS.width = width;
     CANVAS.height = height;    
+    
+    let vAf = ptz(-2, -0.5, 5);
+    let vBf = ptz(-2, 0.5, 5);
+    let vCf = ptz(-1, 0.5, 5);
+    let vDf = ptz(-1, -0.5, 5);
+  
+    
+    let vAb = ptz(-2, -0.5, 6);
+    let vBb = ptz(-2, 0.5, 6);
+    let vCb = ptz(-1, 0.5, 6);
+    let vDb = ptz(-1, -0.5, 6);
+
+    const BLUE = [0, 0, 255];
+    const RED = [255, 0, 0];
+    const GREEN = [0, 255, 0];
+
+    drawLine(
+        projectVertex(vAf),
+        projectVertex(vBf),
+        BLUE
+    );
+    drawLine(
+        projectVertex(vBf),
+        projectVertex(vCf),
+        BLUE
+    );
+    drawLine(
+        projectVertex(vCf),
+        projectVertex(vDf),
+        BLUE
+    );
+    drawLine(
+        projectVertex(vDf),
+        projectVertex(vAf),
+        BLUE
+    );
+
+    drawLine(
+        projectVertex(vAb),
+        projectVertex(vBb),
+        RED
+    );
+    drawLine(
+        projectVertex(vBb),
+        projectVertex(vCb),
+        RED
+    );
+    drawLine(
+        projectVertex(vCb),
+        projectVertex(vDb),
+        RED
+    );
+    drawLine(
+        projectVertex(vDb),
+        projectVertex(vAb),
+        RED
+    );
+
+    drawLine(
+        projectVertex(vAf),
+        projectVertex(vAb),
+        GREEN
+    );
+    drawLine(
+        projectVertex(vBf),
+        projectVertex(vBb),
+        GREEN
+    );
+    drawLine(
+        projectVertex(vCf),
+        projectVertex(vCb),
+        GREEN
+    );
+    drawLine(
+        projectVertex(vDf),
+        projectVertex(vDb),
+        GREEN
+    );
+
+
 
     //drawWireframeTriangle(pt(-100, -100), pt(100, -100), pt(75, 50), [0, 0, 0]);
     //drawFilledTriangle(pt(-100, -100), pt(80, -90), pt(75, 50), [0, 150, 0]);
-    drawShadedTriangle(
-        pth(-100, -100, 0.1),
-        pth(80, -90, 0.3),
-        pth(75, 50, 1.0),
-        [0, 255, 0]
-    );
+    
 
     //drawAxis();
 
