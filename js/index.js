@@ -20,6 +20,9 @@
     }
 
     function putPixel(x, y, color) {
+        if (typeof y === 'undefined') {
+            debugger;
+        }
         x = horizontalCenter + +x;
         y = verticalCenter - y;        
         let pixel = CTX.createImageData(1, 1);
@@ -63,7 +66,7 @@
 
             let ys = interpolate(p0.x, p0.y, p1.x, p1.y);
             for (var i = p0.x; i <= p1.x; i++) {
-                putPixel(i, ys[i - p0.x], color);
+                putPixel(i, ys[Math.round(i - p0.x)], color);
             }
         } else {
             if (y0 > y1) {                
@@ -73,8 +76,8 @@
             }
 
             let xs = interpolate(p0.y, p0.x, p1.y, p1.x);
-            for (var i = p0.y; i <= p1.y; i++) {
-                putPixel(xs[i - p0.y], i, color);
+            for (var i = p0.y; i <= p1.y; i++) {                
+                putPixel(xs[Math.round(i - p0.y)], i, color);
             }
         }
     }
@@ -123,8 +126,7 @@
         } else {
             x_left = x012;
             x_right = x02;
-        }
-        console.log(p0, p1, p2, 'xleft right');
+        }        
         
         for (var y = p0.y; y <= p2.y; y++) {      
             for (var x = x_left[y - p0.y]; x <= x_right[y - p0.y]; x++) {
