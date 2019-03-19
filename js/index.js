@@ -238,7 +238,7 @@
         let p1 = triangle[1];
         let p2 = triangle[2];
 
-        drawWireframeTriangle(vertexes[p0], vertexes[p1], vertexes[p2], color);
+        drawWireframeTriangle(vertexes[p0], vertexes[p1], vertexes[p2], triangle[3]);
     }
 
     function renderInstance(instance) {
@@ -252,7 +252,7 @@
             projected[vertex] = projectVertex(newPosition);
         });
         model.triangles.forEach((triangle) => {
-            renderTriangle(triangle, projected, model.color);
+            renderTriangle(triangle, projected);
         });        
     }
 
@@ -302,20 +302,19 @@
             h: [-1, 1, -1]
         },
         triangles: [
-            ['a', 'b', 'c'],
-            ['a', 'c', 'd'],
-            ['e', 'f', 'g'],
-            ['e', 'h', 'g'],
-            ['d', 'f', 'g'],
-            ['d', 'a', 'g'],
-            ['a', 'h', 'g'],
-            ['a', 'b', 'h'],
-            ['c', 'b', 'h'],
-            ['c', 'e', 'h'],
-            ['c', 'd', 'e'],
-            ['d', 'f', 'e']
-        ],
-        color: RED
+            ['a', 'b', 'c', RED],
+            ['a', 'c', 'd', GREEN],
+            ['e', 'f', 'g', BLUE],
+            ['e', 'h', 'g', RED],
+            ['d', 'f', 'g', BLUE],
+            ['d', 'a', 'g', GREEN],
+            ['a', 'h', 'g', RED],
+            ['a', 'b', 'h', GREEN],
+            ['c', 'b', 'h', RED],
+            ['c', 'e', 'h', BLUE],
+            ['c', 'd', 'e', RED],
+            ['d', 'f', 'e', GREEN]
+        ]
     }
 
     let build1 = {
