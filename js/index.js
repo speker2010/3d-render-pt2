@@ -50,9 +50,7 @@
         return values;
     }
 
-    function drawLine(p0, p1, color) {
-        console.log('line', p0, p1);
-        console.log(width, height);
+    function drawLine(p0, p1, color) {        
         let x1 = p1.x;
         let x0 = p0.x;
         let y1 = p1.y;
@@ -231,7 +229,67 @@
 
     function projectVertex(v) {
         return viewportToCanvas(v.x * d / v.z, v.y * d / v.z);
+    }  
+    
+    function stringToMatrix(string) {
+        return string.split("\n").map((line) => {
+            return line.split(' ').map((elem) => {
+                return +elem
+            });
+        });
     }
+
+    console.log(stringToMatrix(
+        "1 1 1\n" +
+        "2 2 2\n" +
+        "3 3 3"
+    ));
+
+    function gradToRadDecorator(callback) {
+        let koef = (Math.PI / 180);
+        return (angle) => {
+            let rad = angle * koef;       
+            console.log(rad, 'rad');
+            return +callback(rad).toFixed(9);
+        }
+    }
+
+    let cos = gradToRadDecorator((angle) => {
+        return Math.cos(angle);
+    });    
+
+    let sin = gradToRadDecorator((angle) => {
+        return Math.sin(angle);
+    });
+
+    function rotate(horizontal, vertical, rotate) {
+        const COS_R = cos(rotate);
+        const COS_H = cos(horizontal);
+        const COS_V = cos(vertical);
+        const SIN_R = sin(rotate);
+        const SIN_H = sin(horizontal);
+        const SIN_V = sin(vertical);
+
+        let a11 = COS_R * COS_H + SIN_R * SIN_V * SIN_H;
+        let a21 = SIN_R * COS_H - COS_R * SIN_V * SIN_H;
+        let a31 = COS_V * SIN_H;
+        let a12 = -SIN_R * COS_V;
+        let a22 = COS_R * COS_V;
+        let a32 = SIN_V;
+        let a13 = SIN_R * SIN_V * COS_H - COS_R * SIN_H;
+        let a23 = - SIN_R * SIN_H - COS_R * SIN_V * COS_H;
+        let a33 = COS_V * COS_H;
+        return stringToMatrix(
+            `${a11} ${a12} ${a13}\n` +
+            `${a21} ${a22} ${a23}\n` +
+            `${a31} ${a32} ${a33}`
+        );
+        // horizontal > 0. y in face, z and x with watch's arrow || horizontal < 0. y in face, z and x without watch's arrow 
+        // vertical > 0. x in face, z and y with watch's arrow || vertical < 0 x in face, z and y whitout watch's arrow
+        // rotate > 0 z from face, y and x with watch's arrow || rotate < 0 z from face, y and x whithout watch's arrow
+    }
+
+    console.log(rotate(49, 0, 0));
 
     function renderTriangle(triangle, vertexes, color) {
         let p0 = triangle[0];
@@ -241,14 +299,27 @@
         drawWireframeTriangle(vertexes[p0], vertexes[p1], vertexes[p2], triangle[3]);
     }
 
+    function transformVertex(vertex, instance) {
+        let result = instance.model.vertexes[vertex];
+        if (instance.transform.rotate) {            
+            result = vectorToMatrix(result);
+            result = multiMatrix(instance.transform.rotate, result);
+            result = matrixToVector(result);
+        }
+        if (instance.transform.position) {
+            result = add3(
+                ptz(...result),
+                ptz(...instance.transform.position)
+            );
+        }        
+        return result;     
+    }
+
     function renderInstance(instance) {
         let projected = {};
         let model = instance.model;
         Object.keys(model.vertexes).forEach((vertex) => {
-            let newPosition = add3(
-                ptz(...model.vertexes[vertex]),
-                ptz(...instance.transform.position)
-            );
+            let newPosition = transformVertex(vertex, instance);
             projected[vertex] = projectVertex(newPosition);
         });
         model.triangles.forEach((triangle) => {
@@ -327,13 +398,14 @@
     let build2 = {
         model: CUBE,
         transform: {
-            position: [1, 0, -20]
+            position: [0, 0, -4],
+            rotate: rotate(90, 50, 30)
         }
     };
 
     let scene = {
         instances: [
-            build1,
+            
             build2
         ]
     };
@@ -346,9 +418,6 @@
     
 
     //drawAxis();
-
-
-    
 })()
 
 function add3(p0, p1) {
@@ -357,4 +426,54 @@ function add3(p0, p1) {
         y: p0.y + +p1.y,
         z: p0.z + +p1.z
     };
+}
+
+function multiMatrix(matrix0, matrix1) {
+    if (!isMatrix(matrix0) && !isMatrix(matrix1)) {
+        throw new Error('Оба элементы должны быть матрицами');
+    }
+    const HEIGHT_0 = matrix0.length;
+    const HEIGHT_1 = matrix1.length;
+    const WIDTH_0 = matrix0[0].length;
+    const WIDTH_1 = matrix1[0].length;
+    console.log(matrix0, matrix1, WIDTH_0, HEIGHT_1, 'matrix');
+    if (WIDTH_0 !== HEIGHT_1) {
+        throw new Error('Такие матрицы нельзя умножить');
+    }
+    let result = [];
+    for (let i = 0; i < HEIGHT_0; i++) {
+        result[i] = new Array(WIDTH_1);
+    }
+    
+    
+    for (let i = 0; i < HEIGHT_0; i++) {        
+        for (let j = 0; j < WIDTH_1; j++) {
+            let cell = 0;
+            matrix0[i].forEach((cell0, index) => {
+                cell += cell0 * matrix1[index][j];
+            });
+            result[i][j] = cell;
+        }
+    }    
+    return result;    
+}
+
+function vectorToMatrix(vector) {
+    return vector.map((cell) => {
+        return [cell];
+    });
+}
+
+function matrixToVector(matrix) {
+    return matrix.map((cell) => {
+        return cell[0];
+    });
+}
+
+function isMatrix(matrix) {
+    console.log(matrix, typeof matrix, typeof matrix[0], typeof[0][0]);
+    if (!Array.isArray(matrix)) return false;
+    if (!Array.isArray(matrix[0])) return false;
+    if (typeof matrix[0][0] !== 'number') return false;
+    return true;
 }
