@@ -19,18 +19,22 @@
         return coords;
     }
 
+    function clearCanvas() {
+        canvasBuffer = CTX.createImageData(width, height);
+    }
+
     function putPixel(x, y, color) {
         if (typeof y === 'undefined') {
             debugger;
         }
-        x = horizontalCenter + +x;
-        y = verticalCenter - y;        
-        let pixel = CTX.createImageData(1, 1);
-        pixel.data[0] = color[0];
-        pixel.data[1] = color[1];
-        pixel.data[2] = color[2];
-        pixel.data[3] = (color[3]) ? color[3] : 255;
-        CTX.putImageData(pixel, x, y);
+        x = horizontalCenter + Math.floor(x);
+        y = verticalCenter - Math.floor(y);        
+        
+        let offset = 4 * x + canvasPitch * y;
+        canvasBuffer.data[offset++] = color[0];
+        canvasBuffer.data[offset++] = color[1];
+        canvasBuffer.data[offset++] = color[2];
+        canvasBuffer.data[offset++] = (color[3]) ? color[3] : 255;        
     }
 
     function interpolate(i0, d0, i1, d1) {
@@ -114,7 +118,6 @@
         let x012 = x01.concat(x12);
 
         let middle = Math.floor(x012.length / 2);
-        console.log(middle, 'middle');
         let x_left;
         let x_right;
 
@@ -171,7 +174,6 @@
         let h012 = h01.concat(h12);
 
         let middle = Math.floor(x012.length / 2);
-        console.log(middle, 'middle');
         let x_left;
         let x_right;
         let h_left;
@@ -233,23 +235,25 @@
     
     function stringToMatrix(string) {
         return string.split("\n").map((line) => {
-            return line.split(' ').map((elem) => {
-                return +elem
+            return line.split(' ').map((elem) => {                
+                return Number(elem)
             });
         });
     }
 
-    console.log(stringToMatrix(
-        "1 1 1\n" +
-        "2 2 2\n" +
-        "3 3 3"
-    ));
+    function matrixE() {
+        return stringToMatrix(
+            `1 0 0 0\n` +
+            `0 1 0 0\n` +
+            `0 0 1 0\n` +
+            `0 0 0 1`
+        );
+    }
 
     function gradToRadDecorator(callback) {
         let koef = (Math.PI / 180);
         return (angle) => {
-            let rad = angle * koef;       
-            console.log(rad, 'rad');
+            let rad = angle * koef;
             return +callback(rad).toFixed(9);
         }
     }
@@ -280,16 +284,69 @@
         let a23 = - SIN_R * SIN_H - COS_R * SIN_V * COS_H;
         let a33 = COS_V * COS_H;
         return stringToMatrix(
-            `${a11} ${a12} ${a13}\n` +
-            `${a21} ${a22} ${a23}\n` +
-            `${a31} ${a32} ${a33}`
+            `${a11} ${a12} ${a13} 0\n` +
+            `${a21} ${a22} ${a23} 0\n` +
+            `${a31} ${a32} ${a33} 0\n` +
+            `0 0 0 1`
         );
         // horizontal > 0. y in face, z and x with watch's arrow || horizontal < 0. y in face, z and x without watch's arrow 
         // vertical > 0. x in face, z and y with watch's arrow || vertical < 0 x in face, z and y whitout watch's arrow
         // rotate > 0 z from face, y and x with watch's arrow || rotate < 0 z from face, y and x whithout watch's arrow
     }
 
-    console.log(rotate(49, 0, 0));
+    function rotateInvert(horizontal, vertical, rotate) {        
+        const COS_R = cos(rotate);
+        const COS_H = cos(horizontal);
+        const COS_V = cos(vertical);
+        const SIN_R = sin(rotate);
+        const SIN_H = sin(horizontal);
+        const SIN_V = sin(vertical);
+
+        let a11 = COS_R * COS_H - SIN_R * SIN_V * SIN_H;
+        let a21 = -SIN_R * COS_H - COS_R * SIN_V * SIN_H;
+        let a31 = -COS_V * SIN_H;
+        let a12 = SIN_R * COS_V;
+        let a22 = COS_R * COS_V;
+        let a32 = -SIN_V;
+        let a13 = SIN_R * SIN_V * COS_H - COS_R * SIN_H;
+        let a23 = - SIN_R * SIN_H + COS_R * SIN_V * COS_H;
+        let a33 = COS_V * COS_H;
+        return stringToMatrix(
+            `${a11} ${a12} ${a13} 0\n` +
+            `${a21} ${a22} ${a23} 0\n` +
+            `${a31} ${a32} ${a33} 0\n` +
+            `0 0 0 1`
+        );
+    }
+
+    function transition(x, y, z) {
+        return stringToMatrix(
+            `1 0 0 ${x}\n` + 
+            `0 1 0 ${y}\n` + 
+            `0 0 1 ${z}\n` +
+            `0 0 0 1`
+        );
+    }
+
+    function transitionInvert(x, y, z) {           
+        let result = stringToMatrix(            
+            `1 0 0 ${x}\n` + 
+            `0 1 0 ${y}\n` + 
+            `0 0 1 ${z}\n` +
+            `0 0 0 1`
+        );        
+        return result;
+    }
+
+    function scale(x, y, z) {
+        return stringToMatrix(
+            `${x} 0 0 0\n` +
+            `0 ${y} 0 0\n` +
+            `0 0 ${z} 0\n` +
+            `0 0 0 1`
+        );
+    }
+    
 
     function renderTriangle(triangle, vertexes, color) {
         let p0 = triangle[0];
@@ -299,64 +356,75 @@
         drawWireframeTriangle(vertexes[p0], vertexes[p1], vertexes[p2], triangle[3]);
     }
 
-    function transformVertex(vertex, instance) {
-        let result = instance.model.vertexes[vertex];
-        if (instance.transform.rotate) {            
-            result = vectorToMatrix(result);
-            result = multiMatrix(instance.transform.rotate, result);
-            result = matrixToVector(result);
-        }
-        if (instance.transform.position) {
-            result = add3(
-                ptz(...result),
-                ptz(...instance.transform.position)
-            );
+    function transformVertex(vertex, transform) {        
+        let result = vertex;
+        result.push(1);
+        result = vectorToMatrix(result);
+        result = multiMatrix(transform, result);
+        result = matrixToVector(result);
+        result.pop();
+        if (vertex.length === 4) {
+            vertex.pop();
         }        
         return result;     
     }
 
-    function renderInstance(instance) {
+    function rotateTransform(vertex, transformMatrix) {
+        let result = vectorToMatrix(vertex);
+        result = multiMatrix(transformMatrix, result);
+        return matrixToVector(result);        
+    }
+
+    function renderInstance(instance, transform) {        
         let projected = {};
         let model = instance.model;
-        Object.keys(model.vertexes).forEach((vertex) => {
-            let newPosition = transformVertex(vertex, instance);
-            projected[vertex] = projectVertex(newPosition);
+        Object.keys(model.vertexes).forEach((vertex) => {            
+            let position = instance.model.vertexes[vertex];
+            let newPosition = transformVertex(position, transform);            
+            projected[vertex] = projectVertex(ptz(...newPosition));
         });
-        model.triangles.forEach((triangle) => {
+        model.triangles.forEach((triangle) => {            
             renderTriangle(triangle, projected);
         });        
     }
 
-    function renderScene() {
-        scene.instances.forEach((instance) => {
-            renderInstance(instance);
-        });
+    function makeCameraMatrix(position, rotate) {        
+        let matrixPosition = transitionInvert(...position);
+        return multiMatrix(matrixPosition, rotate);
     }
 
-    const CANVAS = document.querySelector('canvas');
-    const CTX = CANVAS.getContext('2d');
-    let size = (window.innerWidth > window.innerHeight) ? window.innerHeight - 4 : window.innerWidth - 4;
-    let width = size;
-    let height = size;
-    let viewWidth = 1;
-    let viewHeight = 1;
-    let d = 1;
-    let horizontalCenter = Math.floor(width / 2);
-    let verticalCenter = Math.floor(height / 2);
-    CANVAS.width = width;
-    CANVAS.height = height;
-    
-    let vAf = ptz(-2, -0.5, 5);
-    let vBf = ptz(-2, 0.5, 5);
-    let vCf = ptz(-1, 0.5, 5);
-    let vDf = ptz(-1, -0.5, 5);
-  
-    
-    let vAb = ptz(-2, -0.5, 6);
-    let vBb = ptz(-2, 0.5, 6);
-    let vCb = ptz(-1, 0.5, 6);
-    let vDb = ptz(-1, -0.5, 6);
+    function makeInstanceMatrix(instance) {
+        let result = stringToMatrix(
+            `1 0 0 0\n` +
+            `0 1 0 0\n` +
+            `0 0 1 0\n` +
+            `0 0 0 1`
+        );
+        if (instance.transform.scale) {
+            let matrixScale = scale(...instance.transform.scale);
+            result = multiMatrix(result, matrixScale);
+        }
+        if (instance.transform.position) {
+            let matrixPosition = transition(...instance.transform.position);
+            result = multiMatrix(result, matrixPosition);
+        }
+        if (instance.transform.rotate) {
+            result = multiMatrix(result, instance.transform.rotate);
+        }        
+        return result;        
+    }
 
+    function renderScene() {
+        let cameraMatrix = makeCameraMatrix(camera.position, camera.rotate);
+        scene.instances.forEach((instance) => {
+            let instanceMatrix = makeInstanceMatrix(instance);
+            let transform = multiMatrix(cameraMatrix, instanceMatrix);            
+            renderInstance(instance, transform);
+        });
+        CTX.putImageData(canvasBuffer, 0, 0);
+    }
+
+    
     const BLUE = [0, 0, 255];
     const RED = [255, 0, 0];
     const GREEN = [0, 255, 0];
@@ -388,29 +456,101 @@
         ]
     }
 
+
+    const CANVAS = document.querySelector('canvas');
+    const CTX = CANVAS.getContext('2d');
+    let size = (window.innerWidth > window.innerHeight) ? window.innerHeight - 4 : window.innerWidth - 4;
+    let width = size;
+    let height = size;
+    let viewWidth = 1;
+    let viewHeight = 1;
+    let d = 1;
+    let horizontalCenter = Math.floor(width / 2);
+    let verticalCenter = Math.floor(height / 2);
+    CANVAS.width = width;
+    CANVAS.height = height;
+    let canvasBuffer = CTX.createImageData(width, height);
+    let canvasPitch = canvasBuffer.width*4;
+    
+    horizontalAngle = 0;
+    verticalAngle = 0;
+
     let build1 = {
         model: CUBE,
         transform: {
-            position: [-2, 2, -10]
+            position: [-2, 2, -40],
+            rotate: rotate(horizontalAngle, verticalAngle, 0)
         }
     };
 
     let build2 = {
         model: CUBE,
         transform: {
-            position: [0, 0, -4],
-            rotate: rotate(90, 50, 30)
+            position: [0, 0, -40],
+            rotate: rotate(horizontalAngle, verticalAngle, 0)            
         }
     };
 
     let scene = {
-        instances: [
-            
+        instances: [,
+            build1,
             build2
-        ]
+        ],
+        transform: {
+            rotate: rotateInvert(0, 0, 0)
+        }
     };
 
+    let cameraHorizontalAngle = 0;
+    let cameraVerticalAngle = 0;
+    let cameraRotateAngle = 0; 
+
+    let camera = {
+        position: [0, 0, 0],
+        rotate: rotateInvert(cameraHorizontalAngle, cameraVerticalAngle, cameraRotateAngle)
+    }
+
     renderScene();
+
+    window.addEventListener('keydown', (e) => {
+        switch(e.key) {
+            case 'w':
+                camera.position[2]++;
+                break;
+            case 's':
+                camera.position[2]--;
+                break;
+            case 'a':
+                camera.position[0]--;
+                break;
+            case 'd':
+                camera.position[0]++;
+                break;
+            case 'z':
+                cameraHorizontalAngle++;
+                break;
+            case 'x':
+                cameraVerticalAngle++;
+                break;
+            case 'c':
+                cameraRotateAngle++;
+                break;            
+        }
+        console.log(e.key);
+    });
+
+    let loop = (time) => {
+        clearCanvas();
+        renderScene();
+        horizontalAngle += 1;
+        verticalAngle += 1;
+        build2.transform.rotate = rotate(horizontalAngle, verticalAngle, 0);
+        build1.transform.rotate = rotate(-horizontalAngle, verticalAngle, 0);      
+        camera.rotate = rotateInvert(cameraHorizontalAngle, cameraVerticalAngle, cameraRotateAngle);
+        requestAnimationFrame(loop);
+    }
+
+    let requestId = requestAnimationFrame(loop);
 
 
     //drawWireframeTriangle(pt(-100, -100), pt(100, -100), pt(75, 50), [0, 0, 0]);
@@ -421,11 +561,11 @@
 })()
 
 function add3(p0, p1) {
-    return {
-        x: p0.x + +p1.x,
-        y: p0.y + +p1.y,
-        z: p0.z + +p1.z
-    };
+    return [
+        p0[0] + +p1[0],
+        p0[1] + +p1[1],
+        p0[2] + +p1[2]
+    ];
 }
 
 function multiMatrix(matrix0, matrix1) {
@@ -436,7 +576,7 @@ function multiMatrix(matrix0, matrix1) {
     const HEIGHT_1 = matrix1.length;
     const WIDTH_0 = matrix0[0].length;
     const WIDTH_1 = matrix1[0].length;
-    console.log(matrix0, matrix1, WIDTH_0, HEIGHT_1, 'matrix');
+    
     if (WIDTH_0 !== HEIGHT_1) {
         throw new Error('Такие матрицы нельзя умножить');
     }
@@ -470,8 +610,7 @@ function matrixToVector(matrix) {
     });
 }
 
-function isMatrix(matrix) {
-    console.log(matrix, typeof matrix, typeof matrix[0], typeof[0][0]);
+function isMatrix(matrix) {    
     if (!Array.isArray(matrix)) return false;
     if (!Array.isArray(matrix[0])) return false;
     if (typeof matrix[0][0] !== 'number') return false;
