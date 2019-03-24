@@ -19,6 +19,14 @@
         return coords;
     }
 
+    let pta = (p) => {
+        return [
+            p.x,
+            p.y,
+            p.z
+        ];
+    }
+
     function clearCanvas() {
         canvasBuffer = CTX.createImageData(width, height);
     }
@@ -26,7 +34,8 @@
     function putPixel(x, y, color) {
         if (typeof y === 'undefined') {
             debugger;
-        }
+        }           
+        
         x = horizontalCenter + Math.floor(x);
         y = verticalCenter - Math.floor(y);        
         
@@ -90,8 +99,24 @@
         drawLine(p2, p0, color);
     }
 
-    function drawFilledTriangle(p0, p1, p2, color) {
-        
+    function computeTriangleNormal(p0, p1, p2) {        
+        let p0p1 = add3(p1, multiplyKV(-1, p0));
+        let p0p2 = add3(p2, multiplyKV(-1, p0));        
+        return cross(p0p1, p0p2);
+    }
+
+    function computeTriangleCenter(p0, p1, p2) {        
+        return multiplyKV(
+            -1/3,
+            add3(add3(p0, p1), p2)
+        )
+    }
+
+    function scalarMultiply(v0, v1) {
+        return v0[0] * v1[0] + v0[1] * v1[1] + v0[2] * v1[2];
+    }
+
+    function drawFilledTriangle(p0, p1, p2, color) {        
         if (p1.y < p0.y) {
             let swap = p1;
             p1 = p0;
@@ -109,7 +134,7 @@
             p1 = p2;
             p2 = swap;
         }
-        
+
         let x01 = interpolate(p0.y, p0.x, p1.y, p1.x);
         let x12 = interpolate(p1.y, p1.x, p2.y, p2.x);
         let x02 = interpolate(p0.y, p0.x, p2.y, p2.x);
@@ -129,11 +154,10 @@
             x_right = x02;
         }        
         
-        for (var y = p0.y; y <= p2.y; y++) {      
-            for (var x = x_left[y - p0.y]; x <= x_right[y - p0.y]; x++) {
-                
-                let coord = pt(x, y);
-            
+        for (var y = p0.y; y <= p2.y; y++) {
+            var [xl, xr] = [x_left[Math.round(y - p0.y)] , x_right[Math.round(y - p0.y)]];
+            for (var x = xl; x <= xr; x++) {                
+                let coord = pt(x, y);            
                 putPixel(coord.x, coord.y, color);
             }
         }
@@ -348,11 +372,32 @@
     }
     
 
-    function renderTriangle(triangle, vertexes, color) {
+    function renderTriangle(triangle, vertexes, model) {
         let p0 = triangle[0];
         let p1 = triangle[1];
         let p2 = triangle[2];
+        
+        
+        
+        let normal = computeTriangleNormal(
+            model[p0],
+            model[p1],
+            model[p2]            
+        );
+        
+        let center = computeTriangleCenter(
+            model[p0],
+            model[p1],
+            model[p2]
+        );
+        
+        
+        
+        if (scalarMultiply(center, normal) < 0) {
+            return;
+        }
 
+        drawFilledTriangle(vertexes[p0], vertexes[p1], vertexes[p2], triangle[3]);
         drawWireframeTriangle(vertexes[p0], vertexes[p1], vertexes[p2], triangle[3]);
     }
 
@@ -378,19 +423,21 @@
     function renderInstance(instance, transform) {        
         let projected = {};
         let model = instance.model;
+        let transformed = [];
         Object.keys(model.vertexes).forEach((vertex) => {            
             let position = instance.model.vertexes[vertex];
-            let newPosition = transformVertex(position, transform);            
+            let newPosition = transformVertex(position, transform);
+            transformed.push(newPosition);
             projected[vertex] = projectVertex(ptz(...newPosition));
         });
         model.triangles.forEach((triangle) => {            
-            renderTriangle(triangle, projected);
+            renderTriangle(triangle, projected, transformed);
         });        
     }
 
     function makeCameraMatrix(position, rotate) {        
         let matrixPosition = transitionInvert(...position);
-        return multiMatrix(matrixPosition, rotate);
+        return multiMatrix(rotate, matrixPosition);
     }
 
     function makeInstanceMatrix(instance) {
@@ -428,31 +475,72 @@
     const BLUE = [0, 0, 255];
     const RED = [255, 0, 0];
     const GREEN = [0, 255, 0];
+    const GRAY = [155, 155, 155];
 
     const CUBE = {
-        vertexes: {
-            a: [1, 1, 1],
-            b: [1, 1, -1],
-            c: [1, -1, -1],
-            d: [1, -1, 1],
-            e: [-1, -1, -1],
-            f: [-1, -1, 1],
-            g: [-1, 1, 1],
-            h: [-1, 1, -1]
-        },
+        vertexes: [
+            [1, 1, 1],
+            [-1, 1, 1],
+            [-1, -1, 1],
+            [1, -1, 1],
+            [1, 1, -1],
+            [-1, 1, -1],
+            [-1, -1, -1],
+            [1, -1, -1]
+        ],
         triangles: [
-            ['a', 'b', 'c', RED],
-            ['a', 'c', 'd', GREEN],
-            ['e', 'f', 'g', BLUE],
-            ['e', 'h', 'g', RED],
-            ['d', 'f', 'g', BLUE],
-            ['d', 'a', 'g', GREEN],
-            ['a', 'h', 'g', RED],
-            ['a', 'b', 'h', GREEN],
-            ['c', 'b', 'h', RED],
-            ['c', 'e', 'h', BLUE],
-            ['c', 'd', 'e', RED],
-            ['d', 'f', 'e', GREEN]
+            [0, 1, 2, RED],
+            [0, 2, 3, GRAY],
+            [1, 5, 6, BLUE],
+            [1, 6, 2, RED],
+            [2, 6, 7, BLUE],
+            [2, 7, 3, GREEN],
+            [4, 0, 3, GRAY],
+            [4, 1, 0, GREEN],
+            [4, 3, 7, RED],
+            [4, 5, 1, BLUE],
+            [5, 4, 7, RED],
+            [5, 7, 6, GREEN]
+        ]
+    }
+
+    const BOX = {
+        vertexes: [
+            [1, 8, 1],
+            [-1, 8, 1],
+            [-1, -1, 1],
+            [1, -1, 1],
+            [1, 8, -1],
+            [-1, 8, -1],
+            [-1, -1, -1],
+            [1, -1, -1]
+        ],
+        triangles: [
+            [0, 1, 2, RED],
+            [0, 2, 3, GRAY],
+            [1, 5, 6, BLUE],
+            [1, 6, 2, RED],
+            [2, 6, 7, BLUE],
+            [2, 7, 3, GREEN],
+            [4, 0, 3, GRAY],
+            [4, 1, 0, GREEN],
+            [4, 3, 7, RED],
+            [4, 5, 1, BLUE],
+            [5, 4, 7, GRAY],
+            [5, 7, 6, GREEN]
+        ]
+    }
+
+    const PANE = {
+        vertexes: [
+            [-100, 0, 0],
+            [100, 0, 0],
+            [-100, 0, 100],
+            [100, 0, 100]
+        ],
+        triangles: [
+            [0, 1, 2, RED],
+            [1, 2, 3, GREEN]
         ]
     }
 
@@ -472,13 +560,13 @@
     let canvasBuffer = CTX.createImageData(width, height);
     let canvasPitch = canvasBuffer.width*4;
     
-    horizontalAngle = 0;
-    verticalAngle = 0;
+    horizontalAngle = 40;
+    verticalAngle = 40;
 
     let build1 = {
         model: CUBE,
         transform: {
-            position: [-2, 2, -40],
+            position: [-2, 2, -10],
             rotate: rotate(horizontalAngle, verticalAngle, 0)
         }
     };
@@ -486,15 +574,44 @@
     let build2 = {
         model: CUBE,
         transform: {
-            position: [0, 0, -40],
+            position: [0, 0, -50],
             rotate: rotate(horizontalAngle, verticalAngle, 0)            
         }
     };
 
+    let build3 = {
+        model: BOX,
+        transform: {
+            position: [10, 0, -70],
+            rotate: rotate(0, 0, 0),
+            scale: [1, 2, 1]
+        }
+    };
+
+    let build4 = {
+        model: BOX,
+        transform: {
+            position: [-10, 0, -100],
+            rotate: rotate(0, 0, 0)            
+        }
+    };
+
+    let build5 = {
+        model: BOX,
+        transform: {
+            position: [-20, 0, -300],
+            rotate: rotate(0, 0, 0),
+            scale: [1, 5, 1]
+        }
+    };
+
     let scene = {
-        instances: [,
+        instances: [
+            build5,  
+            build3,
+            build4,          
             build1,
-            build2
+            build2,            
         ],
         transform: {
             rotate: rotateInvert(0, 0, 0)
@@ -509,6 +626,9 @@
         position: [0, 0, 0],
         rotate: rotateInvert(cameraHorizontalAngle, cameraVerticalAngle, cameraRotateAngle)
     }
+
+    
+    clearCanvas();
 
     renderScene();
 
@@ -535,15 +655,14 @@
             case 'c':
                 cameraRotateAngle++;
                 break;            
-        }
-        console.log(e.key);
+        }        
     });
 
     let loop = (time) => {
         clearCanvas();
         renderScene();
         horizontalAngle += 1;
-        verticalAngle += 1;
+        verticalAngle += 3;
         build2.transform.rotate = rotate(horizontalAngle, verticalAngle, 0);
         build1.transform.rotate = rotate(-horizontalAngle, verticalAngle, 0);      
         camera.rotate = rotateInvert(cameraHorizontalAngle, cameraVerticalAngle, cameraRotateAngle);
@@ -557,7 +676,7 @@
     //drawFilledTriangle(pt(-100, -100), pt(80, -90), pt(75, 50), [0, 150, 0]);
     
 
-    //drawAxis();
+    
 })()
 
 function add3(p0, p1) {
@@ -615,4 +734,20 @@ function isMatrix(matrix) {
     if (!Array.isArray(matrix[0])) return false;
     if (typeof matrix[0][0] !== 'number') return false;
     return true;
+}
+
+function multiplyKV(k, v) {    
+    return [
+        v[0] * k,
+        v[1] * k,
+        v[2] * k
+    ];
+}
+
+function cross(v0, v1) {    
+    return [        
+        v0[1]*v1[2] - v0[2]*v1[1],
+        v0[2]*v1[0] - v0[0]*v1[2],
+        v0[0]*v1[1] - v0[1]*v1[0]
+    ];
 }
